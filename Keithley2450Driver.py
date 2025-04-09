@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 
-#!/usr/bin/env python
-
-## To-do: Display real-time measurements on SMU
-
-import pyvisa
-import numpy as np
-import time
+from pyvisa import ResourceManager
 import matplotlib.pyplot as plt
-from scipy import integrate
+from numpy import savetxt, array
+from time import time, strftime
 from pathlib import Path
-import os
+from os import chdir, mkdir
 
 elapsed_time = []
 sources = []
@@ -18,9 +13,26 @@ measurements = []
 
 
 def SMU_config(sourceMode, measureMode, sourceLevel, limitValue):
+    """ SMU_config initializes the Keithley 2450 Source Meter.
+    The Keithley 2450 is opened as a visa resource and reset.
+
+    sourceMode  -> the mode of the source output (e.g DC_CURRENT or DC_VOLTAGE)
+    
+    measureMode -> the mode of the measured signal (e.g DC_VOLTAGE or DC_CURRENT)
+
+    sourceLevel -> the amplitude of the source output (if sourcing current, this value
+    must be in the range [-1.05, 1.05] A. If sourcing voltage, this value must be 
+    in the range [-210 and 210] V. 
+    
+    limitValue  -> aka. the compliance. This value prevents the instrument from
+    sourcing a voltage or current over a set value to prevent damage to the device
+    under test. e.g if you are sourcing 1 mA current to an electrode with a an impedance
+    of 10 kOhm, the lowest allowable voltage limit is 1 mA * 10 kOhm = 10V. Setting a
+    limit lower than 10V limits the source.
+    """
     # Initialize the resource manager and open Keithley 2450 SourceMeter
     # This SMU is listed as a resource with the alias Keithley2450_CWRU
-    rm = pyvisa.ResourceManager()
+    rm = ResourceManager()
     listedResources = rm.list_resources()
     try:
         instr = rm.open_resource("Keithley2450_CWRU")
@@ -39,7 +51,7 @@ def SMU_config(sourceMode, measureMode, sourceLevel, limitValue):
     # Measure Settings
     instr.write(f"smu.measure.func = smu.FUNC_{measureMode}")
     instr.write("smu.measure.autorange = smu.ON")
-    instr.write("smu.measure.sense = smu.SENSE_2WIRE") #Change to 4WIRE if needed
+    instr.write("smu.measure.sense = smu.SENSE_4WIRE") #Change to 2WIRE if needed
     instr.write("smu.measure.terminals = smu.TERMINALS_FRONT")
     # Turn on the source readback function to record
     # the actual source value being outputted 
@@ -57,18 +69,20 @@ def SMU_config(sourceMode, measureMode, sourceLevel, limitValue):
     ## Reset timer
     instr.write("timer.cleartime()")
 
-
     return instr
 
-def SMU_get_measurement(instr, numDigits):
+def SMU_get_measurement(instr, numDigits = 9):
+    """ SMU_get_measurement reads the following data from the Keithley 2450's default
+    reading buffer, defbuffer1: the time of each measurement, the source value and 
+    the measurement value that are returned as floats. The default number of digits (9)
+    can be adjusted if more/less precision is needed. """
+    
     instr.write("smu.measure.read(defbuffer1)")
     measurement = instr.query("print(defbuffer1.readings[defbuffer1.n])")
     source = instr.query("print(defbuffer1.sourcevalues[defbuffer1.n])")
     elapsed_time = instr.query("print(timer.gettime())")
     
     return (round(float(x), numDigits) for x in (elapsed_time, source, measurement))
-
-
 
 def SVMI_cycle(instr,sourceLevel, limitValue, delayTimeBetweenSamples, numDigits:int):
     # Start Charging
@@ -93,90 +107,115 @@ def SVMI_cycle(instr,sourceLevel, limitValue, delayTimeBetweenSamples, numDigits
              break
         instr.write(f"delay({delayTimeBetweenSamples})")
 
+def SMU_export_data(dataOut, fileName, dataHeader,  formatString = "%f"):
+    """ Export data in .csv file format and save on Box Drive in STTR folder"""
+    dataRepositoryPath = Path.home()/"Box/Electrical Nerve Block Institute/Data/\
+ElectrodeTesting/STTR/"
+    chdir(dataRepositoryPath)
+    dataSessionPath = strftime("%Y-%m-%d")
+    try:
+        mkdir(dataSessionPath)
+        chdir(dataSessionPath)
+    except FileExistsError:
+        chdir(dataSessionPath)
+        
+    dataOutFileName = fileName + strftime("_%H_%M_%S") + ".csv"
+    with open (dataOutFileName, 'w') as fp: 
+        fp.writelines(dataHeader + '\n')
+        savetxt(fp, dataOut ,delimiter=",", fmt = formatString)
+
+
+def SMU_xyplot(xPoints, yPoints, xLabel = '', yLabel = '', figureTitle = ''):
+    fig, ax1 = plt.subplots()
+    fig.suptitle(figureTitle, fontsize=12)
+    ax1.grid()
+
+    color = 'tab:red'
+    ax1.set_xlabel(xLabel)
+    ax1.set_ylabel(yLabel, color=color)
+    ax1.plot(array(xPoints), array(yPoints), color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    dataRepositoryPath = Path.home()/"Box/Electrical Nerve Block Institute/Data/\
+ElectrodeTesting/STTR/"
+    chdir(dataRepositoryPath)
+    dataSessionPath = strftime("%Y-%m-%d")
+    try:
+        mkdir(dataSessionPath)
+        chdir(dataSessionPath)
+    except FileExistsError:
+        chdir(dataSessionPath)
+    plt.savefig(figureTitle + strftime("_%H_%M_%S") + ".png")
+    plt.show()
+    
+def SMU_yyplot(xPoints, y1Points, y2Points, figureTitle, xLabel = '', y1Label = '', y2Label = ''):
+    """ SMU_yyplot uses  matplotlib.pyplot to plot two dependent variables (e.g current and voltage) 
+    versus an independent variable (e.g time). All variables are converted to numpy arrays. The
+    relative_time = relative_time
+    figure is saved on Box in /Date/ElectrodeTesting/STTR/YYYY_MM_DD with the file name exported as
+    figureTitle_HH_MM_SS.png
+
+    xPoints, y1Points and y2Points  --> each is a 1-D array of numbers 
+    figureTitle  --> string containing the figure title. The exported figure has a file name
+                     with this string
+    xLabel, y1Label and y2Label (optional) -> strings containing the axes labels
+    """
+    fig, ax1 = plt.subplots()
+    fig.suptitle(figureTitle, fontsize=12)
+    ax1.grid()
+
+    COLOR = "#0072BD"
+    ax1.set_xlabel(xLabel)
+    ax1.set_ylabel(y1Label, color=COLOR, weight='bold')
+    ax1.plot(array(xPoints), array(y1Points), color=COLOR)
+    ax1.tick_params(axis='y', labelcolor=COLOR)
+    ax1.ticklabel_format(axis='y', style = 'plain')
+    ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
+
+    COLOR = "#D95319"
+    ax2.set_ylabel(y2Label,  color=COLOR, weight='bold')
+    ax2.plot(array(xPoints), array(y2Points), color=COLOR)
+    ax2.tick_params(axis='y', labelcolor=COLOR)
+    ax2.ticklabel_format(axis='y', style = 'scientific',scilimits=(-3, 3) )
+
+    dataRepositoryPath = Path.home()/"Box/Electrical Nerve Block Institute/Data/\
+ElectrodeTesting/STTR/"
+    chdir(dataRepositoryPath)
+    dataSessionPath = strftime("%Y-%m-%d")
+    try:
+        mkdir(dataSessionPath)
+        chdir(dataSessionPath)
+    except FileExistsError:
+        chdir(dataSessionPath)
+    
+    plt.savefig(figureTitle +  strftime("_%H_%M_%S") + ".png")
+    plt.show()
+
+def fix_time_jumps(timeIn):
+    timeJumps = []
+    for i in range(1, len(timeIn) - 1):
+        if (timeIn[i] - timeIn[i-1] < 0): # time jump occurred if dt is negative
+            timeJumps.append(timeIn[i-1])
+    
+    cumulativeTimeJumps =[0]
+    for i in range(len(timeJumps)) :
+        cumulativeTimeJumps.append(sum(timeJumps[:i+1]))
+
+    j = 0
+    timeOut = [timeIn[0]]
+    for i in range(1, len(timeIn)):
+        if (timeIn[i] - timeIn[i - 1] < 0):
+            j += 1
+            
+        timeOut.append(timeIn[i] + cumulativeTimeJumps[j])
+
+    return timeOut
 
 def SMU_close(instr):
     instr.write("smu.source.output = smu.OFF")
     instr.write("defbuffer1.clear()")
     instr.close()
     
-def main():
-    SOURCE_LEVEL = 100e-6
-    LIMIT_VALUE = 2
-
-    MEASURE_PERIOD = 0.5 # seconds between consecutive measurement samples
-    NUM_DIGITS = 9 # round measurements to NUM_DIGITS
-    NUM_CYCLES = 1
-    FIG_TITLE = "Cycle testing on STTR tripolar electrode"
-    SOURCE_MODE = "DC_CURRENT"
-    SOURCE_UNIT = "VOLT" if SOURCE_MODE == "DC_VOLTAGE" else "AMP"
-    MEASURE_MODE = "DC_VOLTAGE"
-    MEASURE_UNIT = "VOLT"
-
-    timeStr = time.strftime("%H_%M_%S")
-    # timestamp will be appended to the exported filename
-    keithley = SMU_config(SOURCE_MODE,MEASURE_MODE,SOURCE_LEVEL,LIMIT_VALUE)
-    deltaMeasure = 1e-6 # 
-
-    for cycleNumber in range(1,NUM_CYCLES + 1):
-        print(f"Start cycle {cycleNumber}")
-         # Start charge
-        print(f" Charging the electrode to {SOURCE_LEVEL} {SOURCE_UNIT}S...\n")
-        print(f"Time, {SOURCE_MODE} ({SOURCE_UNIT}S), {MEASURE_MODE} ({MEASURE_UNIT}S)")
-        SVMI_cycle(keithley, sourceLevel = SOURCE_LEVEL,  limitValue= LIMIT_VALUE, delayTimeBetweenSamples = MEASURE_PERIOD, numDigits= NUM_DIGITS)
-        
-        # Start discharge
-        print(f"Discharging the electrode to -{SOURCE_LEVEL} {SOURCE_UNIT}S)...\n")
-        print(f"Time, {SOURCE_MODE} ({SOURCE_UNIT}S), {MEASURE_MODE}{MEASURE_UNIT}")
-
-        SVMI_cycle(keithley,sourceLevel = -SOURCE_LEVEL , limitValue = LIMIT_VALUE, delayTimeBetweenSamples = MEASURE_PERIOD, numDigits= NUM_DIGITS)
-    
-    # clean up
-    SMU_close(keithley)
-
-    # export results to .csv file
-    measurementsOut = np.asarray(measurements)
-    sourcesOut  = SOURCE_LEVEL* np.sign(measurementsOut)
-    
-    dataRepositoryPath = Path.home()/"Box/Electrical Nerve Block Institute/Data/\
-ElectrodeTesting/STTR/Cycle testing/"
-    os.chdir(dataRepositoryPath)
-    dataSessionPath = time.strftime("%Y-%m-%d")
-    try:
-        os.mkdir(dataSessionPath)
-        os.chdir(dataSessionPath)
-    except FileExistsError:
-        os.chdir(dataSessionPath)
-    dataOutFileName = FIG_TITLE
-    np.savetxt(timeStr + FIG_TITLE +".csv", np.column_stack((sourcesOut, measurementsOut)), delimiter=",")
-
-    # Calculate energy stored in Watt-hours for each cycle
-    
-    # Plot current and voltage vs time
-    
-    fig, ax1 = plt.subplots()
-    fig.suptitle(FIG_TITLE, fontsize=12)
-    ax1.grid()
-
-    color = 'tab:red'
-    ax1.set_xlabel('time (s)')
-    ax1.set_ylabel(f"{MEASURE_MODE} ({MEASURE_UNIT})", color=color)
-    ax1.plot(measurementsOut, color=color)
-    ax1.tick_params(axis='y', labelcolor=color)
-
-    ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
-
-    color = 'tab:blue'
-    ax2.set_ylabel(f"{SOURCE_MODE} ({SOURCE_UNIT})", color=color)  # we already handled the x-label with ax1
-    ax2.plot(sourcesOut, color=color)
-    ax2.tick_params(axis='y', labelcolor=color)
-
-    fig.tight_layout()  # otherwise the right y-label is slightly clipped
-    plt.savefig(FIG_TITLE + timeStr + ".png")
-    plt.show()
-    
 
     
-    
-if __name__ == "__main__":
-    main()
     

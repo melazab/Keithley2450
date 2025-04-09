@@ -34,7 +34,7 @@ def SMU_config(sourceMode, measureMode, sourceLevel, limitValue):
     instr.timeout = 10000
     
     # General Settings
-    instr.write("display.changescreen(display.SCREEN_USER_SWIPE)")
+    #instr.write("display.changescreen(display.SCREEN_USER_SWIPE)")
     # Measure Settings
     instr.write(f"smu.measure.func = smu.FUNC_{measureMode}")
     instr.write("smu.measure.autorange = smu.ON")
@@ -61,7 +61,7 @@ def SMU_get_measurement(instr, numDigits: int) -> float:
     measurementFloat = round(float(measurementStr), numDigits)
     return measurementFloat
 
-def SVMI_cycle(instr,sourceLevel, dI, delayTimeBetweenSamples, numDigits:int):
+def SVMI_cycle(instr,sourceLevel, limitValue, delayTimeBetweenSamples, numDigits:int):
     # Start Charging
     instr.write(f"smu.source.level = {sourceLevel}")
     instr.write("smu.source.output = smu.ON")
@@ -75,7 +75,7 @@ def SVMI_cycle(instr,sourceLevel, dI, delayTimeBetweenSamples, numDigits:int):
         newMeasurement = SMU_get_measurement(instr,numDigits)
         print(newMeasurement)
         measurements.append(newMeasurement)
-        if (abs(measurements[-1] - measurements[-2]) < dI):
+        if (abs(newMeasurement) > limitValue):
             break
         instr.write(f"delay({delayTimeBetweenSamples})")
 
@@ -86,31 +86,31 @@ def SMU_close(instr):
     instr.close()
 
 def main():
-    SOURCE_LEVEL = 0.5
-    LIMIT_VALUE = 0.02
+    SOURCE_LEVEL = 50e-6
+    LIMIT_VALUE = 1
 
     MEASURE_PERIOD = 0.5 # seconds between consecutive measurement samples
     NUM_DIGITS = 9 #round measurements to NUM_DIGITS
-    NUM_CYCLES = 5
+    NUM_CYCLES = 2
     FIG_TITLE = "Cycle testing on STTR tripolar electrode"
-    SOURCE_MODE = "DC_VOLTAGE"
+    SOURCE_MODE = "DC_CURRENT"
     SOURCE_UNIT = "VOLT" if SOURCE_MODE == "DC_VOLTAGE" else "AMP"
-    MEASURE_MODE = "DC_CURRENT"
+    MEASURE_MODE = "DC_VOLTAGE"
     MEASURE_UNIT = "AMP"
 
     timeStr = time.strftime("%H_%M_%S")
     # timestamp will be appended to the exported filename
     keithley = SMU_config(SOURCE_MODE,MEASURE_MODE,SOURCE_LEVEL,LIMIT_VALUE)
-    deltaMeasure = 1e-6 #  
+    
     for cycleNumber in range(1,NUM_CYCLES + 1):
         print(f"Start cycle {cycleNumber}")
          # Start charge
         print(f" Charging the electrode to {SOURCE_LEVEL} {SOURCE_UNIT}S...\n")
-        SVMI_cycle(keithley, sourceLevel = SOURCE_LEVEL,  dI = deltaMeasure, delayTimeBetweenSamples = MEASURE_PERIOD, numDigits= NUM_DIGITS)
+        SVMI_cycle(keithley, sourceLevel = SOURCE_LEVEL, limitValue=LIMIT_VALUE, delayTimeBetweenSamples = MEASURE_PERIOD, numDigits= NUM_DIGITS)
         
         # Start discharge
         print(f"Discharging the electrode to -{SOURCE_LEVEL} {SOURCE_UNIT}S...\n")
-        SVMI_cycle(keithley,sourceLevel = -SOURCE_LEVEL , dI = deltaMeasure, delayTimeBetweenSamples = MEASURE_PERIOD, numDigits= NUM_DIGITS)
+        SVMI_cycle(keithley,sourceLevel = -SOURCE_LEVEL, limitValue = LIMIT_VALUE, delayTimeBetweenSamples = MEASURE_PERIOD, numDigits= NUM_DIGITS)
     
     # clean up
     SMU_close(keithley)
@@ -128,8 +128,8 @@ ElectrodeTesting/STTR/Cycle testing/"
         os.chdir(dataSessionPath)
     except FileExistsError:
         os.chdir(dataSessionPath)
-    dataOutFileName = FIG_TITLE
-    np.savetxt(timeStr + FIG_TITLE +".csv", np.column_stack((sourcesOut, measurementsOut)), delimiter=",")
+    dataOutFileName = timeStr + FIG_TITLE
+    np.savetxt(dataOutFileName+".csv", np.column_stack((sourcesOut, measurementsOut)), delimiter=",")
 
     # Calculate energy stored in Watt-hours for each cycle
     
