@@ -17,14 +17,13 @@ The `CIC_Keithley2450.py` script programs the SMU to source controlled current p
 5. Turn on the current source readback function
 6. Set the voltage limit (compliance) to the desired charge/discharge level (Max = 210V)
 7. Read back the current, source readback voltage, and relative timestamp
-8. Monitor the voltage until the battery reaches the desired level and stop the test
 
 ## Setup Requirements
 
 **Important:** To run `CIC_Keithley2450.py`, make sure to:
 
 1. Activate the Python virtual environment with the necessary dependencies
-   `source ./venv/bin/activate` on Linux
+   using `source ./venv/bin/activate` on Linux
 2. Configure the SMU to communicate using TSP (SCPI is the default setting on the Keithley 2450).
 
 To change the command set:

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-DATA_PATH = Path.home() / "Desktop"  # Add your own data path
+DATA_PATH = Path.home() / "Documents/STTR_DATA"  # Add your own data path
 ELECTRODE_ID = "STTR_H4mm_ID13P86mm"
 NUM_PULSES = 2
 INTER_PULSE_INTERVAL = 2
