@@ -4,14 +4,14 @@ from pathlib import Path
 
 DATA_PATH = Path.home() / "Documents/STTR_DATA"  # Add your own data path
 ELECTRODE_ID = "STTR_H4mm_ID13P86mm"
-NUM_PULSES = 2
+NUM_PULSES = 1
 INTER_PULSE_INTERVAL = 2
-INTER_PHASE_DELAY = 10
-ANODIC_PULSE_WIDTH = 0.1 * 60  # pulse width in minutes
-CATHODIC_PULSE_WIDTH = 0.2 * 60  # pulse width in minutes
+INTER_PHASE_DELAY = 0
+ANODIC_PULSE_WIDTH = 60 * 60  # pulse width in minutes
+CATHODIC_PULSE_WIDTH = 60 * 60  # pulse width in minutes
 
 ANODIC_CURRENT_AMPLITUDE = 1e-3
-CATHODIC_CURRENT_AMPLITUDE = -0.5e-3
+CATHODIC_CURRENT_AMPLITUDE = -1e-3
 COMPLIANCE_VOLTAGE = 210
 waveform_parameters = {
     "numPulses": NUM_PULSES,
