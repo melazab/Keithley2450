@@ -6,8 +6,6 @@ This repository contains Python modules for controlling the Keithley 2450 Source
 
 The `Keithley2450Driver.py` module provides functions to configure the SMU and control source and measurement parameters, including:
 
-- `SMU_config` - Configure basic SMU settings
-
 ## Charge Injection Capacity Testing
 
 The `CIC_Keithley2450.py` script programs the SMU to source controlled current pulses and measure the resulting voltage
@@ -23,10 +21,15 @@ The `CIC_Keithley2450.py` script programs the SMU to source controlled current p
 
 ## Setup Requirements
 
-**Important:** To execute the `cyclingTestKeithley2450.py` code, the SMU must be in the TSP command set mode (SCPI command is the default setting on the Keithley 2450).
+**Important:** To run `CIC_Keithley2450.py`, make sure to:
+
+1. Activate the Python virtual environment with the necessary dependencies
+   `source ./venv/bin/activate` on Linux
+2. Configure the SMU to communicate using TSP (SCPI is the default setting on the Keithley 2450).
 
 To change the command set:
-1. Access the menu settings on the SMU
+
+1. Access the menu settings on the Keithley 2450
 2. Change from SCPI to TSP command set
 3. Apply the changes
 
@@ -34,4 +37,7 @@ If the SMU is not properly configured, it won't understand the messages sent by 
 
 ## To-Do List
 
-- Implement the zero-crossing method to stop sourcing current once dV/dt 
+- Implement the zero-crossing method to:
+
+1. Monitor the rate of change of measured voltage over time
+2. Stop sourcing current once dV/dt falls below a predefined threshold.
