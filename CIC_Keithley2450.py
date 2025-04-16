@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-## The pulseWidth parameter in SMU_biphasic_current_pulse
+## The pulseWidth parameter in smu_biphasic_current_pulse
 ## implies the cathodic and anodic pulses have equal duration
 
 from pathlib import Path
@@ -9,13 +9,14 @@ from time import time
 import matplotlib.pyplot as plt
 from numpy import array, column_stack
 
+from experimental_configs import ELECTRODE_ID, waveform_parameters
 from Keithley2450Driver import (
-    SMU_close,
-    SMU_config,
-    SMU_export_data,
-    SMU_get_measurement,
-    SMU_yyplot,
     fix_time_jumps,
+    smu_close,
+    smu_config,
+    smu_export_data,
+    smu_get_measurement,
+    smu_yyplot,
 )
 
 relativeTimeIn = []
@@ -24,375 +25,395 @@ measurements = []
 cycles = []
 
 
-def SMU_monophasic_current_pulse(waveformParameters, polarity):
+def smu_monophasic_current_pulse(waveform_parameters, polarity):
     """
-    waveformParameters -> Dict that contains the waveform parameters
+    waveform_parameters -> Dict that contains the waveform parameters
 
     polarity -> String that describes whether the current is "anodic" or "cathodic"
 
     """
-    if abs(waveformParameters["currentAmplitude"][polarity]) > 1.05:
-        print("Error: SMU_monophasic_current_pulse")
+    if abs(waveform_parameters["currentAmplitude"][polarity]) > 1.05:
+        print("Error: smu_monophasic_current_pulse")
         print("Current Amplitude must be in the range [-1.05, 1.05] A")
         exit
 
-    instr = SMU_config(
+    instr = smu_config(
         "DC_CURRENT",
         "DC_VOLTAGE",
-        waveformParameters["currentAmplitude"][polarity],
-        waveformParameters["complianceVoltage"],
+        waveform_parameters["currentAmplitude"][polarity],
+        waveform_parameters["complianceVoltage"],
     )
 
     instr.write("smu.source.output = smu.ON")  # Turn on output
     instr.write("timer.cleartime()")  # Reset Timer
     tic = time()
     while True:
-        elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-            instr, numDigits=9
+        elapsed_time, source_current, measure_voltage = smu_get_measurement(
+            instr, num_digits=9
         )
         relativeTimeIn.append(time() - tic)
-        sources.append(sourceCurrent)
-        measurements.append(measureVoltage)
+        sources.append(source_current)
+        measurements.append(measure_voltage)
         cycles.append(1)
 
-        if elapsed_time > waveformParameters["pulseWidth"][polarity]:
+        if elapsed_time > waveform_parameters["pulseWidth"][polarity]:
             break
     return instr
 
 
-def SMU_biphasic_current_pulse(waveformParameters):
-    if (waveformParameters["currentAmplitude"]["anodic"] < 0) or (
-        waveformParameters["currentAmplitude"]["anodic"] > 1.05
+def smu_biphasic_current_pulse(waveform_parameters):
+    if (waveform_parameters["currentAmplitude"]["anodic"] < 0) or (
+        waveform_parameters["currentAmplitude"]["anodic"] > 1.05
     ):
-        print("Error: SMU_asymmetric_biphasic_current_pulse")
+        print("Error: smu_asymmetric_biphasic_current_pulse")
         print("Anodic current amplitude must be in the range [0, 1.05] A")
         exit
-    elif (waveformParameters["currentAmplitude"]["cathodic"] < -1.05) or (
-        waveformParameters["currentAmplitude"]["cathodic"] > 0
+    elif (waveform_parameters["currentAmplitude"]["cathodic"] < -1.05) or (
+        waveform_parameters["currentAmplitude"]["cathodic"] > 0
     ):
-        print("Error: SMU_asymmetric_biphasic_current_pulse")
+        print("Error: smu_asymmetric_biphasic_current_pulse")
         print("Cathodic current amplitude must be in the range [-1.05, 0] A")
         exit
 
-    if waveformParameters["anodicFirst"]:
-        instr = SMU_config(
+    if waveform_parameters["anodicFirst"]:
+        instr = smu_config(
             "DC_CURRENT",
             "DC_VOLTAGE",
-            waveformParameters["currentAmplitude"]["anodic"],
-            waveformParameters["complianceVoltage"],
+            waveform_parameters["currentAmplitude"]["anodic"],
+            waveform_parameters["complianceVoltage"],
         )
     else:
-        instr = SMU_config(
+        instr = smu_config(
             "DC_CURRENT",
             "DC_VOLTAGE",
-            waveformParameters["currentAmplitude"]["cathodic"],
-            waveformParameters["complianceVoltage"],
+            waveform_parameters["currentAmplitude"]["cathodic"],
+            waveform_parameters["complianceVoltage"],
         )
 
     instr.write("smu.source.output = smu.ON")  # Turn on output
     instr.write("timer.cleartime()")  # Reset Timer
     tic = time()  # Time 0 of relativeTimeIn array
     while True:
-        elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-            instr, numDigits=9
+        elapsed_time, source_current, measure_voltage = smu_get_measurement(
+            instr, num_digits=9
         )
         relativeTimeIn.append(time() - tic)
-        sources.append(sourceCurrent)
-        measurements.append(measureVoltage)
+        sources.append(source_current)
+        measurements.append(measure_voltage)
         cycles.append(1)  # only 1 cycle not a train
-        if elapsed_time > waveformParameters["pulseWidth"]["anodic"]:
+        if elapsed_time > waveform_parameters["pulseWidth"]["anodic"]:
             break
 
     instr.write("timer.cleartime()")  # Reset Timer
-    if waveformParameters["anodicFirst"]:
+    if waveform_parameters["anodicFirst"]:
         instr.write(
-            f"smu.source.level = {waveformParameters["currentAmplitude"]["cathodic"]}"
+            f"smu.source.level = {waveform_parameters["currentAmplitude"]["cathodic"]}"
         )  # Switch from anodic to cathodic
     else:  # otherwise if cathodicFirst then switch from cathodic to anodic
         instr.write(
-            f"smu.source.level = {waveformParameters["currentAmplitude"]["anodic"]}"
+            f"smu.source.level = {waveform_parameters["currentAmplitude"]["anodic"]}"
         )
     while True:
-        elapsed_time = SMU_get_measurement(instr, numDigits=9)
-        elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-            instr, numDigits=9
+        elapsed_time = smu_get_measurement(instr, num_digits=9)
+        elapsed_time, source_current, measure_voltage = smu_get_measurement(
+            instr, num_digits=9
         )
         relativeTimeIn.append(time() - tic)
-        sources.append(sourceCurrent)
-        measurements.append(measureVoltage)
+        sources.append(source_current)
+        measurements.append(measure_voltage)
         cycles.append(1)  # only 1 cycle not a train
-        if elapsed_time > waveformParameters["pulseWidth"]["cathodic"]:
+        if elapsed_time > waveform_parameters["pulseWidth"]["cathodic"]:
             break
 
     instr.write("smu.source.output = smu.OFF")
     return instr
 
 
-def SMU_monophasic_current_pulse_train(waveformParameters, polarity):
+def smu_monophasic_current_pulse_train(waveform_parameters, polarity):
     """
-    waveformParameters -> Dict that contains the waveform parameters
+    waveform_parameters -> Dict that contains the waveform parameters
 
     polarity -> String that describes whether the current is "anodic" or "cathodic"
 
     """
-    if waveformParameters["numPulses"] < 0:
-        print("Error: SMU_monophasic_current_pulse_train")
+    if waveform_parameters["numPulses"] < 0:
+        print("Error: smu_monophasic_current_pulse_train")
         print("Number of pulses must be non-negative")
         exit
 
-    if abs(waveformParameters["currentAmplitude"][polarity]) > 1.05:
-        print("Error: SMU_monophasic_current_pulse_train")
+    if abs(waveform_parameters["currentAmplitude"][polarity]) > 1.05:
+        print("Error: smu_monophasic_current_pulse_train")
         print("Current Amplitude must be in the range [-1.05, 1.05] A")
         exit
 
-    instr = SMU_config(
+    instr = smu_config(
         "DC_CURRENT",
         "DC_VOLTAGE",
-        waveformParameters["currentAmplitude"][polarity],
-        waveformParameters["complianceVoltage"],
+        waveform_parameters["currentAmplitude"][polarity],
+        waveform_parameters["complianceVoltage"],
     )
     try:
-        iter(waveformParameters["pulseWidth"][polarity])
-        pulseWidth = waveformParameters["pulseWidth"][polarity]
+        iter(waveform_parameters["pulseWidth"][polarity])
+        pulseWidth = waveform_parameters["pulseWidth"][polarity]
 
     except TypeError as te:
         pulseWidth = [
-            waveformParameters["pulseWidth"][polarity]
-            for _ in range(0, waveformParameters["numPulses"])
+            waveform_parameters["pulseWidth"][polarity]
+            for _ in range(0, waveform_parameters["numPulses"])
         ]
 
-    for cycleNumber in range(0, waveformParameters["numPulses"]):
+    for cycle_number in range(0, waveform_parameters["numPulses"]):
         instr.write("timer.cleartime()")  # Reset Timer
         instr.write("smu.source.output = smu.ON")  # Turn on output
         elapsed_time = 0
-        while elapsed_time < pulseWidth[cycleNumber]:
-            elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                instr, numDigits=9
+        while elapsed_time < pulseWidth[cycle_number]:
+            elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                instr, num_digits=9
             )
-            cycles.append(cycleNumber + 1)
-            sources.append(sourceCurrent)
+            cycles.append(cycle_number + 1)
+            sources.append(source_current)
             relativeTimeIn.append(elapsed_time)
-            measurements.append(measureVoltage)
+            measurements.append(measure_voltage)
 
         # instr.write("smu.source.output = smu.OFF")
         instr.write("smu.source.level = 0")
         while (
             elapsed_time
-            < pulseWidth[cycleNumber] + waveformParameters["interPulseInterval"]
+            < pulseWidth[cycle_number] + waveform_parameters["interPulseInterval"]
         ):
-            elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                instr, numDigits=9
+            elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                instr, num_digits=9
             )
-            cycles.append(cycleNumber + 1)
-            sources.append(sourceCurrent)
+            cycles.append(cycle_number + 1)
+            sources.append(source_current)
             relativeTimeIn.append(elapsed_time)
-            measurements.append(measureVoltage)
+            measurements.append(measure_voltage)
         instr.write(
-            f"smu.source.level = {waveformParameters["currentAmplitude"][polarity]}"
+            f"smu.source.level = {waveform_parameters["currentAmplitude"][polarity]}"
         )
     return instr
 
 
-def SMU_biphasic_current_pulse_train(waveformParameters):
-    # if waveformParameters["numPulses"] < 0:
-    #     print("Error: SMU_biphasic_current_pulse_train")
-    #     print("Number of pulses must be non-negative")
-    #     exit
-
-    # if (waveformParameters["currentAmplitude"]["anodic"] < 0) or (waveformParameters["currentAmplitude"]["anodic"] > 1.05):
-    #     print("Error: SMU_asymmetric_biphasic_current_pulse")
-    #     print("Anodic current amplitude must be in the range [0, 1.05] A")
-    #     exit
-    # elif (waveformParameters["currentAmplitude"]["cathodic"] < -1.05) or (waveformParameters["currentAmplitude"]["cathodic"] > 0):
-    #     print("Error: SMU_asymmetric_biphasic_current_pulse")
-    #     print("Cathodic current amplitude must be in the range [-1.05, 0] A")
-    #     exit
-    ## Input Handling ##
-
-    # Handle the case where the pulse width is not constant through out cycles
-    # e.g pulse width could be an array [1, 2, 4, 8] which represents a waveform
-    # whose pulse width doubles every cycle.
-
+def smu_biphasic_current_pulse_train(waveform_parameters):
     try:
-        iter(waveformParameters["pulseWidth"]["anodic"])
-        anodicPulseWidth = waveformParameters["pulseWidth"]["anodic"]
+        iter(waveform_parameters["pulseWidth"]["anodic"])
+        anodicPulseWidth = waveform_parameters["pulseWidth"]["anodic"]
     except TypeError as te:
         anodicPulseWidth = [
-            waveformParameters["pulseWidth"]["anodic"]
-            for _ in range(0, waveformParameters["numPulses"])
+            waveform_parameters["pulseWidth"]["anodic"]
+            for _ in range(0, waveform_parameters["numPulses"])
         ]
 
     try:
-        iter(waveformParameters["pulseWidth"]["cathodic"])
-        cathodicPulseWidth = waveformParameters["pulseWidth"]["cathodic"]
+        iter(waveform_parameters["pulseWidth"]["cathodic"])
+        cathodicPulseWidth = waveform_parameters["pulseWidth"]["cathodic"]
     except TypeError as te:
         cathodicPulseWidth = [
-            waveformParameters["pulseWidth"]["cathodic"]
-            for _ in range(0, waveformParameters["numPulses"])
+            waveform_parameters["pulseWidth"]["cathodic"]
+            for _ in range(0, waveform_parameters["numPulses"])
         ]
 
     # Handle the case where the current amplitude is not constant through out cycles
     # e.g current amplitude could be [1, 2, 4, 8] which represents a waveform whose
     # amplitude doubles every cycle.
     try:
-        iter(waveformParameters["currentAmplitude"]["anodic"])
-        anodicCurrenAmplitude = waveformParameters["currentAmplitude"]["anodic"]
+        iter(waveform_parameters["currentAmplitude"]["anodic"])
+        anodic_current_amplitude = waveform_parameters["currentAmplitude"]["anodic"]
     except TypeError as te:
-        anodicCurrenAmplitude = [
-            waveformParameters["currentAmplitude"]["anodic"]
-            for _ in range(0, waveformParameters["numPulses"])
+        anodic_current_amplitude = [
+            waveform_parameters["currentAmplitude"]["anodic"]
+            for _ in range(0, waveform_parameters["numPulses"])
         ]
 
     try:
-        iter(waveformParameters["currentAmplitude"]["cathodic"])
-        cathodicCurrenAmplitude = waveformParameters["currentAmplitude"]["cathodic"]
+        iter(waveform_parameters["currentAmplitude"]["cathodic"])
+        cathodic_current_amplitude = waveform_parameters["currentAmplitude"]["cathodic"]
     except TypeError as te:
-        cathodicCurrenAmplitude = [
-            waveformParameters["currentAmplitude"]["cathodic"]
-            for _ in range(0, waveformParameters["numPulses"])
+        cathodic_current_amplitude = [
+            waveform_parameters["currentAmplitude"]["cathodic"]
+            for _ in range(0, waveform_parameters["numPulses"])
         ]
 
-    if waveformParameters["anodicFirst"]:
-        instr = SMU_config(
+    if waveform_parameters["anodicFirst"]:
+        instr = smu_config(
             "DC_CURRENT",
             "DC_VOLTAGE",
-            anodicCurrenAmplitude[0],
-            waveformParameters["complianceVoltage"],
+            anodic_current_amplitude[0],
+            waveform_parameters["complianceVoltage"],
         )
-        for cycleNumber in range(0, waveformParameters["numPulses"]):
+        for cycle_number in range(0, waveform_parameters["numPulses"]):
             instr.write("timer.cleartime()")  # Reset Timer
             instr.write("smu.source.level = 0")
             instr.write("smu.source.output = smu.ON")  # Turn on output
             elapsed_time = 0
-            while elapsed_time < waveformParameters["interPulseInterval"]:
-                elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                    instr, numDigits=9
+            while elapsed_time < waveform_parameters["interPulseInterval"]:
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
                 )
-                cycles.append(cycleNumber + 1)
-                sources.append(sourceCurrent)
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
                 relativeTimeIn.append(elapsed_time)
-                measurements.append(measureVoltage)
-            instr.write(f"smu.source.level = {anodicCurrenAmplitude[cycleNumber]}")
+                measurements.append(measure_voltage)
+            instr.write(f"smu.source.level = {anodic_current_amplitude[cycle_number]}")
             while (
                 elapsed_time
-                < anodicPulseWidth[cycleNumber]
-                + waveformParameters["interPulseInterval"]
+                < anodicPulseWidth[cycle_number]
+                + waveform_parameters["interPulseInterval"]
             ):
-                elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                    instr, numDigits=9
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
                 )
-                cycles.append(cycleNumber + 1)
-                sources.append(sourceCurrent)
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
                 relativeTimeIn.append(elapsed_time)
-                measurements.append(measureVoltage)
-            instr.write(f"smu.source.level = {cathodicCurrenAmplitude[cycleNumber]}")
-            while (
-                elapsed_time
-                < anodicPulseWidth[cycleNumber]
-                + cathodicPulseWidth[cycleNumber]
-                + waveformParameters["interPulseInterval"]
-            ):
-                elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                    instr, numDigits=9
-                )
-                cycles.append(cycleNumber + 1)
-                sources.append(sourceCurrent)
-                relativeTimeIn.append(elapsed_time)
-                measurements.append(measureVoltage)
+                measurements.append(measure_voltage)
             instr.write("smu.source.level = 0")
             while (
                 elapsed_time
-                < anodicPulseWidth[cycleNumber]
-                + cathodicPulseWidth[cycleNumber]
-                + 2 * waveformParameters["interPulseInterval"]
+                < anodicPulseWidth[cycle_number]
+                + waveform_parameters["interPhaseDelay"]
+                + waveform_parameters["interPulseInterval"]
             ):
-                elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                    instr, numDigits=9
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
                 )
-                cycles.append(cycleNumber + 1)
-                sources.append(sourceCurrent)
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
                 relativeTimeIn.append(elapsed_time)
-                measurements.append(measureVoltage)
-    else:
-        instr = SMU_config(
+                measurements.append(measure_voltage)
+            instr.write(
+                f"smu.source.level = {cathodic_current_amplitude[cycle_number]}"
+            )
+            while (
+                elapsed_time
+                < anodicPulseWidth[cycle_number]
+                + waveform_parameters["interPhaseDelay"]
+                + cathodicPulseWidth[cycle_number]
+                + waveform_parameters["interPulseInterval"]
+            ):
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
+                )
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
+                relativeTimeIn.append(elapsed_time)
+                measurements.append(measure_voltage)
+            instr.write("smu.source.level = 0")
+            while (
+                elapsed_time
+                < anodicPulseWidth[cycle_number]
+                + waveform_parameters["interPhaseDelay"]
+                + cathodicPulseWidth[cycle_number]
+                + 2 * waveform_parameters["interPulseInterval"]
+            ):
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
+                )
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
+                relativeTimeIn.append(elapsed_time)
+                measurements.append(measure_voltage)
+    else:  # cathodic first pulses
+        instr = smu_config(
             "DC_CURRENT",
             "DC_VOLTAGE",
-            cathodicCurrenAmplitude[0],
-            waveformParameters["complianceVoltage"],
+            cathodic_current_amplitude[0],
+            waveform_parameters["complianceVoltage"],
         )
-        for cycleNumber in range(0, waveformParameters["numPulses"]):
+        for cycle_number in range(0, waveform_parameters["numPulses"]):
             instr.write("timer.cleartime()")  # Reset Timer
             instr.write("smu.source.level = 0")
             instr.write("smu.source.output = smu.ON")  # Turn on output
             elapsed_time = 0
-            while elapsed_time < waveformParameters["interPulseInterval"]:
-                elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                    instr, numDigits=9
+            while elapsed_time < waveform_parameters["interPulseInterval"]:
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
                 )
-                cycles.append(cycleNumber + 1)
-                sources.append(sourceCurrent)
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
                 relativeTimeIn.append(elapsed_time)
-                measurements.append(measureVoltage)
-            instr.write(f"smu.source.level = {cathodicCurrenAmplitude[cycleNumber]}")
+                measurements.append(measure_voltage)
+            # Cathodic phase
+            instr.write(
+                f"smu.source.level = {cathodic_current_amplitude[cycle_number]}"
+            )
             while (
                 elapsed_time
-                < anodicPulseWidth[cycleNumber]
-                + waveformParameters["interPulseInterval"]
+                < cathodicPulseWidth[cycle_number]
+                + waveform_parameters["interPulseInterval"]
             ):
-                elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                    instr, numDigits=9
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
                 )
-                cycles.append(cycleNumber + 1)
-                sources.append(sourceCurrent)
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
                 relativeTimeIn.append(elapsed_time)
-                measurements.append(measureVoltage)
-            instr.write(f"smu.source.level = {anodicCurrenAmplitude[cycleNumber]}")
-            while (
-                elapsed_time
-                < anodicPulseWidth[cycleNumber]
-                + cathodicPulseWidth[cycleNumber]
-                + waveformParameters["interPulseInterval"]
-            ):
-                elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                    instr, numDigits=9
-                )
-                cycles.append(cycleNumber + 1)
-                sources.append(sourceCurrent)
-                relativeTimeIn.append(elapsed_time)
-                measurements.append(measureVoltage)
+                measurements.append(measure_voltage)
+            # Interphase delay (if non-zero)
             instr.write("smu.source.level = 0")
             while (
                 elapsed_time
-                < anodicPulseWidth[cycleNumber]
-                + cathodicPulseWidth[cycleNumber]
-                + 2 * waveformParameters["interPulseInterval"]
+                < waveform_parameters["interPhaseDelay"]
+                + cathodicPulseWidth[cycle_number]
+                + waveform_parameters["interPulseInterval"]
             ):
-                elapsed_time, sourceCurrent, measureVoltage = SMU_get_measurement(
-                    instr, numDigits=9
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
                 )
-                cycles.append(cycleNumber + 1)
-                sources.append(sourceCurrent)
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
                 relativeTimeIn.append(elapsed_time)
-                measurements.append(measureVoltage)
+                measurements.append(measure_voltage)
+
+            # Anodic phase
+            instr.write(f"smu.source.level = {anodic_current_amplitude[cycle_number]}")
+            while (
+                elapsed_time
+                < cathodicPulseWidth[cycle_number]
+                + anodicPulseWidth[cycle_number]
+                + waveform_parameters["interPulseInterval"]
+                + waveform_parameters["interPhaseDelay"]
+            ):
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
+                )
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
+                relativeTimeIn.append(elapsed_time)
+                measurements.append(measure_voltage)
+            instr.write("smu.source.level = 0")
+            while (
+                elapsed_time
+                < anodicPulseWidth[cycle_number]
+                + waveform_parameters["interPhaseDelay"]
+                + cathodicPulseWidth[cycle_number]
+                + 2 * waveform_parameters["interPulseInterval"]
+            ):
+                elapsed_time, source_current, measure_voltage = smu_get_measurement(
+                    instr, num_digits=9
+                )
+                cycles.append(cycle_number + 1)
+                sources.append(source_current)
+                relativeTimeIn.append(elapsed_time)
+                measurements.append(measure_voltage)
 
     return instr
 
 
 def main():
-    from waveform_parameters import waveformParameters
 
-    keithley = SMU_biphasic_current_pulse_train(waveformParameters)
-    SMU_close(keithley)
+    keithley = smu_biphasic_current_pulse_train(waveform_parameters)
+    smu_close(keithley)
     relativeTimeOut = fix_time_jumps(relativeTimeIn)
 
     # Export data into .csv file
     dataHeader = "Time,Current,Voltage,Cycle Number"
     dataOut = column_stack((relativeTimeOut, sources, measurements, cycles))
-    title = "STTR_H8mm_ID8mm_2mA_trial3"
-    SMU_export_data(dataOut, title, dataHeader)
+    title = ELECTRODE_ID
+    smu_export_data(dataOut, title, dataHeader)
 
     # Plot current and voltage vs time
-    SMU_yyplot(
+    smu_yyplot(
         relativeTimeOut,
         measurements,
         sources,
@@ -405,4 +426,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
