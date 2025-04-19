@@ -19,7 +19,7 @@ from Keithley2450Driver import (
     smu_yyplot,
 )
 
-relativeTimeIn = []
+relative_time_in = []
 sources = []
 measurements = []
 cycles = []
@@ -51,7 +51,7 @@ def smu_monophasic_current_pulse(waveform_parameters, polarity):
         elapsed_time, source_current, measure_voltage = smu_get_measurement(
             instr, num_digits=9
         )
-        relativeTimeIn.append(time() - tic)
+        relative_time_in.append(time() - tic)
         sources.append(source_current)
         measurements.append(measure_voltage)
         cycles.append(1)
@@ -92,12 +92,12 @@ def smu_biphasic_current_pulse(waveform_parameters):
 
     instr.write("smu.source.output = smu.ON")  # Turn on output
     instr.write("timer.cleartime()")  # Reset Timer
-    tic = time()  # Time 0 of relativeTimeIn array
+    tic = time()  # Time 0 of relative_time_in array
     while True:
         elapsed_time, source_current, measure_voltage = smu_get_measurement(
             instr, num_digits=9
         )
-        relativeTimeIn.append(time() - tic)
+        relative_time_in.append(time() - tic)
         sources.append(source_current)
         measurements.append(measure_voltage)
         cycles.append(1)  # only 1 cycle not a train
@@ -118,7 +118,7 @@ def smu_biphasic_current_pulse(waveform_parameters):
         elapsed_time, source_current, measure_voltage = smu_get_measurement(
             instr, num_digits=9
         )
-        relativeTimeIn.append(time() - tic)
+        relative_time_in.append(time() - tic)
         sources.append(source_current)
         measurements.append(measure_voltage)
         cycles.append(1)  # only 1 cycle not a train
@@ -172,7 +172,7 @@ def smu_monophasic_current_pulse_train(waveform_parameters, polarity):
             )
             cycles.append(cycle_number + 1)
             sources.append(source_current)
-            relativeTimeIn.append(elapsed_time)
+            relative_time_in.append(elapsed_time)
             measurements.append(measure_voltage)
 
         # instr.write("smu.source.output = smu.OFF")
@@ -186,7 +186,7 @@ def smu_monophasic_current_pulse_train(waveform_parameters, polarity):
             )
             cycles.append(cycle_number + 1)
             sources.append(source_current)
-            relativeTimeIn.append(elapsed_time)
+            relative_time_in.append(elapsed_time)
             measurements.append(measure_voltage)
         instr.write(
             f"smu.source.level = {waveform_parameters["currentAmplitude"][polarity]}"
@@ -252,7 +252,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
             instr.write(f"smu.source.level = {anodic_current_amplitude[cycle_number]}")
             while (
@@ -265,7 +265,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
             instr.write("smu.source.level = 0")
             while (
@@ -279,7 +279,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
             instr.write(
                 f"smu.source.level = {cathodic_current_amplitude[cycle_number]}"
@@ -296,7 +296,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
             instr.write("smu.source.level = 0")
             while (
@@ -311,7 +311,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
     else:  # cathodic first pulses
         instr = smu_config(
@@ -331,7 +331,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
             # Cathodic phase
             instr.write(
@@ -347,7 +347,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
             # Interphase delay (if non-zero)
             instr.write("smu.source.level = 0")
@@ -362,7 +362,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
 
             # Anodic phase
@@ -379,7 +379,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
             instr.write("smu.source.level = 0")
             while (
@@ -394,7 +394,7 @@ def smu_biphasic_current_pulse_train(waveform_parameters):
                 )
                 cycles.append(cycle_number + 1)
                 sources.append(source_current)
-                relativeTimeIn.append(elapsed_time)
+                relative_time_in.append(elapsed_time)
                 measurements.append(measure_voltage)
 
     return instr
@@ -404,17 +404,17 @@ def main():
 
     keithley = smu_biphasic_current_pulse_train(waveform_parameters)
     smu_close(keithley)
-    relativeTimeOut = fix_time_jumps(relativeTimeIn)
+    relative_time_out = fix_time_jumps(relative_time_in)
 
     # Export data into .csv file
-    dataHeader = "Time,Current,Voltage,Cycle Number"
-    dataOut = column_stack((relativeTimeOut, sources, measurements, cycles))
+    data_header = "Time,Current,Voltage,Cycle Number"
+    data_out = column_stack((relative_time_out, sources, measurements, cycles))
     title = ELECTRODE_ID
-    smu_export_data(dataOut, title, dataHeader)
+    smu_export_data(data_out, title, data_header)
 
     # Plot current and voltage vs time
     smu_yyplot(
-        relativeTimeOut,
+        relative_time_out,
         measurements,
         sources,
         title,
